@@ -175,6 +175,11 @@
 .qty-button {
   width: 30px;
   height: 30px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
   border: 1px solid #1f5fbf;
   border-radius: 6px;
   background-color: #ffffff;
@@ -200,6 +205,114 @@
 .order-button {
   margin-top: 12px;
   width: 100%;
+}
+
+.admin-page {
+  margin-top: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.admin-section {
+  border: 1px solid #d8d8d8;
+  border-radius: 10px;
+  padding: 18px 20px;
+  background-color: #ffffff;
+}
+
+.admin-section h3 {
+  margin: 0 0 14px;
+  font-size: 30px;
+}
+
+.admin-dashboard-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.admin-dashboard-grid p {
+  margin: 0;
+}
+
+.stock-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.stock-card {
+  border: 1px solid #d8d8d8;
+  border-radius: 8px;
+  padding: 14px;
+}
+
+.stock-card h4 {
+  margin: 0 0 8px;
+  font-size: 20px;
+}
+
+.stock-card p {
+  margin: 0;
+}
+
+.stock-info-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.stock-label {
+  margin: 0;
+  line-height: 1.2;
+  font-weight: 700;
+}
+
+.stock-label--normal {
+  color: #2e7d32;
+}
+
+.stock-label--warning {
+  color: #f57c00;
+}
+
+.stock-label--soldout {
+  color: #d32f2f;
+}
+
+.stock-actions {
+  margin-top: 10px;
+  display: flex;
+  gap: 8px;
+}
+
+.order-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.order-item {
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  padding: 12px;
+  display: grid;
+  grid-template-columns: 160px 1fr 120px 110px;
+  gap: 12px;
+  align-items: center;
+}
+
+.order-item p {
+  margin: 0;
+}
+
+.status-button {
+  padding: 8px 10px;
 }
 
 @media (max-width: 720px) {
@@ -230,5 +343,22 @@
 
   .cart-right p {
     text-align: left;
+  }
+
+  .admin-section h3 {
+    font-size: 24px;
+  }
+
+  .admin-dashboard-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .stock-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .order-item {
+    grid-template-columns: 1fr;
+    gap: 8px;
   }
 }
