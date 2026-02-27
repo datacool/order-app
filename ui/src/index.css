@@ -1,0 +1,22 @@
+body {
+  margin: 0;
+  min-width: 360px;
+  font-family:
+    'Noto Sans KR',
+    'Apple SD Gothic Neo',
+    'Malgun Gothic',
+    sans-serif;
+  line-height: 1.4;
+  color: #141414;
+  background-color: #f5f6f8;
+}
+
+button {
+  font-size: 16px;
+  font-family: inherit;
+  cursor: pointer;
+  transition:
+    background-color 120ms ease,
+    border-color 120ms ease,
+    color 120ms ease;
+}
