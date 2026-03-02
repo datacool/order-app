@@ -259,3 +259,159 @@ UI/UX 요구사항과 동작 기준을 정의한다.
 - AC-06: `제조 완료` 주문은 추가 상태 변경이 불가능하다.
 - AC-07: 상태/재고 변경 결과가 목록과 대시보드 집계에 반영된다.
 - AC-08: 조회/업데이트 실패 시 사용자에게 오류 메시지와 재시도 동선이 제공된다.
+
+## 6. 백엔드 개발 PRD
+
+### 6.1 문서 목적
+프런트엔드 PRD에서 정의한 주문/관리자 기능을 안정적으로 지원하기 위해,
+백엔드 데이터 모델, 데이터 흐름, API 계약을 정의한다.
+
+### 6.2 데이터 모델
+
+#### A. menus
+- 목적: 주문 가능한 커피 메뉴 마스터 데이터 관리
+- 필드
+  - `id` (PK)
+  - `name` (커피 이름)
+  - `description` (설명)
+  - `price` (기본 가격)
+  - `image_url` (이미지 URL)
+  - `stock_quantity` (재고 수량)
+  - `created_at`, `updated_at`
+
+#### B. options
+- 목적: 메뉴별 선택 옵션(예: 샷 추가) 관리
+- 필드
+  - `id` (PK)
+  - `menu_id` (FK -> menus.id)
+  - `name` (옵션 이름)
+  - `price` (옵션 가격)
+  - `created_at`, `updated_at`
+
+#### C. orders
+- 목적: 주문 헤더 데이터 저장
+- 필드
+  - `id` (PK)
+  - `ordered_at` (주문 일시)
+  - `status` (`주문 접수` | `제조 중` | `완료`)
+  - `total_amount` (총 금액)
+  - `created_at`, `updated_at`
+
+#### D. order_items
+- 목적: 주문 상세(메뉴, 수량, 금액, 옵션) 저장
+- 필드
+  - `id` (PK)
+  - `order_id` (FK -> orders.id)
+  - `menu_id` (FK -> menus.id)
+  - `quantity` (수량)
+  - `unit_price` (단가: 메뉴+옵션 반영)
+  - `line_amount` (항목 합계)
+  - `selected_options` (옵션 목록 JSON 또는 별도 매핑 테이블)
+  - `created_at`, `updated_at`
+
+### 6.3 데이터 스키마 사용자 흐름
+
+#### Flow-01 메뉴 표시
+1) 클라이언트가 메뉴 목록 API를 호출한다.  
+2) 서버는 `menus`와 `options`를 조회해 응답한다.  
+3) 클라이언트는 `주문하기` 화면에 메뉴 정보를 표시한다.  
+4) `stock_quantity`는 관리자 화면 `재고 현황`에 표시한다.
+
+#### Flow-02 장바구니 담기
+1) 사용자가 메뉴/옵션을 선택해 장바구니에 담는다.  
+2) 장바구니 데이터는 클라이언트 상태로 관리한다.  
+3) 수량/금액 계산은 클라이언트에서 즉시 반영한다.
+
+#### Flow-03 주문 저장
+1) 사용자가 장바구니에서 `주문하기`를 클릭한다.  
+2) 서버는 주문 요청을 검증한다.
+  - 메뉴 존재 여부
+  - 옵션의 메뉴 연결 유효성
+  - 재고 수량 충분 여부
+3) 검증 성공 시 트랜잭션으로 `orders`, `order_items`를 저장한다.  
+4) `menus.stock_quantity`를 주문 수량만큼 차감한다.  
+5) 응답으로 생성된 주문 ID와 주문 요약을 반환한다.
+
+#### Flow-04 관리자 주문 현황/상태 변경
+1) 관리자 화면은 `orders` + `order_items`를 조회해 `주문 현황`에 표시한다.  
+2) 신규 주문의 기본 상태는 `주문 접수`이다.  
+3) 관리자가 상태 버튼 클릭 시 `주문 접수 -> 제조 중 -> 완료` 순서로 변경한다.  
+4) 서버는 허용된 상태 전이만 반영하고 결과를 반환한다.
+
+### 6.4 API 설계
+
+#### API-01 메뉴 목록 조회
+- `GET /api/menus`
+- 설명: `주문하기` 메뉴 진입 시 DB의 메뉴/옵션 목록 조회
+- 응답 예시(요약)
+  - `menus[]`: `id`, `name`, `description`, `price`, `image_url`
+  - `options[]`: `id`, `menu_id`, `name`, `price`
+
+#### API-02 주문 생성
+- `POST /api/orders`
+- 설명: 사용자가 선택한 주문 정보를 저장
+- 요청 바디 예시(요약)
+  - `items[]`
+    - `menu_id`
+    - `quantity`
+    - `option_ids[]`
+- 서버 처리
+  - 주문 금액 계산
+  - 재고 검증
+  - `orders`, `order_items` 저장
+  - `menus.stock_quantity` 차감
+- 응답 예시
+  - `order_id`
+  - `ordered_at`
+  - `status` (`주문 접수`)
+  - `total_amount`
+
+#### API-03 주문 단건 조회
+- `GET /api/orders/{orderId}`
+- 설명: 주문 ID로 상세 주문 정보 조회
+- 응답 예시(요약)
+  - `order`: `id`, `ordered_at`, `status`, `total_amount`
+  - `items[]`: `menu_name`, `quantity`, `selected_options`, `line_amount`
+
+#### API-04 주문 목록 조회(관리자)
+- `GET /api/orders`
+- 설명: 관리자 화면 `주문 현황` 조회
+- 쿼리 옵션(선택): `status`, `date_from`, `date_to`, `limit`, `offset`
+
+#### API-05 주문 상태 변경(관리자)
+- `PATCH /api/orders/{orderId}/status`
+- 설명: 주문 상태를 단계적으로 변경
+- 요청 바디
+  - `status`: `주문 접수` | `제조 중` | `완료`
+- 제약
+  - 허용 전이: `주문 접수 -> 제조 중 -> 완료`
+  - 역전이/건너뛰기 금지
+
+#### API-06 재고 조정(관리자)
+- `PATCH /api/menus/{menuId}/stock`
+- 설명: 관리자 재고 수량 증감
+- 요청 바디
+  - `delta`: 정수(예: `+1`, `-1`)
+- 제약
+  - 결과 재고는 0 미만 불가
+
+### 6.5 백엔드 기능 요구사항
+- BR-01: 주문 생성은 원자성을 보장해야 하며, 중간 실패 시 전체 롤백해야 한다.
+- BR-02: 재고가 부족한 주문은 저장하지 않고 명확한 오류를 반환해야 한다.
+- BR-03: 주문 상태는 정의된 순서로만 변경 가능해야 한다.
+- BR-04: 모든 금액 계산은 서버 기준으로 수행해야 한다.
+- BR-05: 날짜/시간은 표준 포맷(ISO 8601)으로 저장/반환해야 한다.
+
+### 6.6 오류 처리 규칙
+- `400 Bad Request`: 필수 필드 누락, 잘못된 파라미터
+- `404 Not Found`: 메뉴/주문 ID 없음
+- `409 Conflict`: 재고 부족, 허용되지 않은 상태 전이
+- `500 Internal Server Error`: 서버 내부 오류
+
+### 6.7 수용 기준(AC)
+- AC-BE-01: `GET /api/menus` 호출 시 메뉴/옵션 데이터가 화면 요구사항 형식으로 반환된다.
+- AC-BE-02: `POST /api/orders` 성공 시 주문과 주문 상세가 저장되고 재고가 차감된다.
+- AC-BE-03: 재고 부족 주문은 저장되지 않고 `409` 오류가 반환된다.
+- AC-BE-04: `GET /api/orders/{orderId}`로 주문 단건 조회가 가능하다.
+- AC-BE-05: 관리자 상태 변경 시 `주문 접수 -> 제조 중 -> 완료` 외 전이는 거부된다.
+- AC-BE-06: `PATCH /api/menus/{menuId}/stock`에서 재고가 음수가 되지 않는다.

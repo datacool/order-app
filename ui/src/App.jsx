@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import './App.css'
 import {
   formatOrderDate,
@@ -7,62 +7,106 @@ import {
   getStockTone,
 } from './lib/orderUtils'
 
-const MENU_ITEMS = [
+const FALLBACK_MENUS = [
   {
-    id: 'americano-ice',
+    id: 1,
     name: '아메리카노(ICE)',
     price: 4000,
     description: '진하고 깔끔한 풍미의 아이스 아메리카노',
     imageUrl:
       'https://commons.wikimedia.org/wiki/Special:FilePath/Iced_coffee_image.jpg',
+    stockQuantity: 10,
+    options: [
+      { id: 11, label: '샷 추가', price: 500 },
+      { id: 12, label: '시럽 추가', price: 0 },
+    ],
   },
   {
-    id: 'americano-hot',
+    id: 2,
     name: '아메리카노(HOT)',
     price: 4000,
     description: '고소한 향이 살아 있는 따뜻한 아메리카노',
     imageUrl:
       'https://images.pexels.com/photos/374885/pexels-photo-374885.jpeg',
+    stockQuantity: 10,
+    options: [
+      { id: 21, label: '샷 추가', price: 500 },
+      { id: 22, label: '시럽 추가', price: 0 },
+    ],
   },
   {
-    id: 'cafe-latte',
+    id: 3,
     name: '카페라떼',
     price: 5000,
     description: '부드러운 우유와 에스프레소의 균형',
     imageUrl:
       'https://images.pexels.com/photos/302899/pexels-photo-302899.jpeg',
+    stockQuantity: 10,
+    options: [
+      { id: 31, label: '샷 추가', price: 500 },
+      { id: 32, label: '시럽 추가', price: 0 },
+    ],
   },
 ]
 
-const OPTIONS = [
-  { id: 'extra-shot', label: '샷 추가', price: 500 },
-  { id: 'syrup', label: '시럽 추가', price: 0 },
+const FALLBACK_ORDERS = [
+  {
+    id: 1,
+    orderedAt: '2026-07-31T13:00:00',
+    menuSummary: '아메리카노(ICE) x 1',
+    totalPrice: 4000,
+    status: '주문 접수',
+  },
 ]
+
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:4000'
 
 const ORDER_STATUS = {
   RECEIVED: '주문 접수',
   MAKING: '제조 중',
-  DONE: '제조 완료',
+  DONE: '완료',
 }
 
 function App() {
   const [activeTab, setActiveTab] = useState('order')
+  const [menus, setMenus] = useState(FALLBACK_MENUS)
   const [selectedOptionsByMenuId, setSelectedOptionsByMenuId] = useState({})
   const [cartItems, setCartItems] = useState([])
-  const [stockByMenuId, setStockByMenuId] = useState({
-    'americano-ice': 10,
-    'americano-hot': 10,
-    'cafe-latte': 10,
-  })
-  const [orders, setOrders] = useState([
-    {
-      id: 1,
-      orderedAt: '2026-07-31T13:00:00',
-      menuSummary: '아메리카노(ICE) x 1',
-      totalPrice: 4000,
-      status: ORDER_STATUS.RECEIVED,
-    },
-  ])
+  const [orders, setOrders] = useState(FALLBACK_ORDERS)
+  const [errorMessage, setErrorMessage] = useState('')
+
+  useEffect(() => {
+    const fetchInitialData = async () => {
+      try {
+        const [menusResponse, ordersResponse] = await Promise.all([
+          fetch(`${API_BASE_URL}/api/menus`),
+          fetch(`${API_BASE_URL}/api/orders`),
+        ])
+        const menusData = await menusResponse.json()
+        const ordersData = await ordersResponse.json()
+
+        if (!menusResponse.ok) {
+          throw new Error(menusData.message ?? '메뉴 조회에 실패했습니다.')
+        }
+
+        if (!ordersResponse.ok) {
+          throw new Error(ordersData.message ?? '주문 조회에 실패했습니다.')
+        }
+
+        if (Array.isArray(menusData.menus)) {
+          setMenus(menusData.menus)
+        }
+
+        if (Array.isArray(ordersData.orders)) {
+          setOrders(ordersData.orders)
+        }
+      } catch (error) {
+        setErrorMessage(`API 연결 실패: ${error.message}`)
+      }
+    }
+
+    fetchInitialData()
+  }, [])
 
   const toggleOption = (menuId, optionId) => {
     setSelectedOptionsByMenuId((prevState) => {
@@ -81,7 +125,7 @@ function App() {
     const sortedOptionIds = [...selectedOptionIds].sort()
     const optionKey = sortedOptionIds.join('|')
     const cartItemKey = `${menuItem.id}:${optionKey}`
-    const selectedOptions = OPTIONS.filter((option) =>
+    const selectedOptions = menuItem.options.filter((option) =>
       sortedOptionIds.includes(option.id),
     )
     const optionPrice = selectedOptions.reduce(
@@ -115,6 +159,7 @@ function App() {
           quantity: 1,
           unitPrice,
           selectedOptions,
+          selectedOptionIds: sortedOptionIds,
         },
       ]
     })
@@ -137,7 +182,7 @@ function App() {
     )
   }
 
-  const placeOrder = () => {
+  const placeOrderLocally = () => {
     if (cartItems.length === 0) {
       return
     }
@@ -160,44 +205,166 @@ function App() {
     }, {})
 
     setOrders((prevState) => [nextOrder, ...prevState])
-    setStockByMenuId((prevState) => {
-      const nextState = { ...prevState }
-
-      Object.entries(usedStocks).forEach(([menuId, quantity]) => {
-        nextState[menuId] = Math.max(0, (nextState[menuId] ?? 0) - quantity)
-      })
-
-      return nextState
-    })
+    setMenus((prevState) =>
+      prevState.map((menu) => ({
+        ...menu,
+        stockQuantity: Math.max(
+          0,
+          (menu.stockQuantity ?? 0) - (usedStocks[menu.id] ?? 0),
+        ),
+      })),
+    )
     setCartItems([])
   }
 
-  const adjustStock = (menuId, delta) => {
-    setStockByMenuId((prevState) => ({
-      ...prevState,
-      [menuId]: Math.max(0, (prevState[menuId] ?? 0) + delta),
-    }))
+  const placeOrder = async () => {
+    if (cartItems.length === 0) {
+      return
+    }
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/orders`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          items: cartItems.map((item) => ({
+            menuId: item.menuId,
+            quantity: item.quantity,
+            optionIds: item.selectedOptionIds,
+          })),
+        }),
+      })
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.message ?? '주문 생성에 실패했습니다.')
+      }
+
+      setOrders((prevState) => [
+        {
+          id: data.order.id,
+          orderedAt: data.order.orderedAt,
+          status: data.order.status,
+          totalPrice: data.order.totalPrice,
+          menuSummary: cartItems
+            .map((item) => `${item.menuName} x ${item.quantity}`)
+            .join(', '),
+        },
+        ...prevState,
+      ])
+      setMenus((prevState) =>
+        prevState.map((menu) => ({
+          ...menu,
+          stockQuantity: Math.max(
+            0,
+            (menu.stockQuantity ?? 0) -
+              cartItems
+                .filter((item) => item.menuId === menu.id)
+                .reduce((sum, item) => sum + item.quantity, 0),
+          ),
+        })),
+      )
+      setCartItems([])
+      setErrorMessage('')
+    } catch (error) {
+      setErrorMessage(`주문 API 실패: ${error.message} (로컬 처리로 전환)`)
+      placeOrderLocally()
+    }
   }
 
-  const updateOrderStatus = (orderId) => {
-    setOrders((prevState) =>
-      prevState.map((order) => {
-        if (order.id !== orderId) {
+  const adjustStock = async (menuId, delta) => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/menus/${menuId}/stock`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ delta }),
+      })
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.message ?? '재고 변경에 실패했습니다.')
+      }
+
+      setMenus((prevState) =>
+        prevState.map((menu) =>
+          menu.id === menuId
+            ? { ...menu, stockQuantity: data.menu.stockQuantity }
+            : menu,
+        ),
+      )
+      setErrorMessage('')
+    } catch (error) {
+      setErrorMessage(`재고 API 실패: ${error.message} (로컬 처리로 전환)`)
+      setMenus((prevState) =>
+        prevState.map((menu) =>
+          menu.id === menuId
+            ? { ...menu, stockQuantity: Math.max(0, menu.stockQuantity + delta) }
+            : menu,
+        ),
+      )
+    }
+  }
+
+  const updateOrderStatus = async (orderId) => {
+    const current = orders.find((order) => order.id === orderId)
+
+    if (!current || current.status === ORDER_STATUS.DONE) {
+      return
+    }
+
+    const nextStatus =
+      current.status === ORDER_STATUS.RECEIVED
+        ? ORDER_STATUS.MAKING
+        : ORDER_STATUS.DONE
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/orders/${orderId}/status`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: nextStatus }),
+      })
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.message ?? '주문 상태 변경에 실패했습니다.')
+      }
+
+      setOrders((prevState) =>
+        prevState.map((order) =>
+          order.id === orderId ? { ...order, status: data.order.status } : order,
+        ),
+      )
+      setErrorMessage('')
+    } catch (error) {
+      setErrorMessage(`주문 상태 API 실패: ${error.message} (로컬 처리로 전환)`)
+      setOrders((prevState) =>
+        prevState.map((order) => {
+          if (order.id !== orderId) {
+            return order
+          }
+
+          if (order.status === ORDER_STATUS.RECEIVED) {
+            return { ...order, status: ORDER_STATUS.MAKING }
+          }
+
+          if (order.status === ORDER_STATUS.MAKING) {
+            return { ...order, status: ORDER_STATUS.DONE }
+          }
+
           return order
-        }
-
-        if (order.status === ORDER_STATUS.RECEIVED) {
-          return { ...order, status: ORDER_STATUS.MAKING }
-        }
-
-        if (order.status === ORDER_STATUS.MAKING) {
-          return { ...order, status: ORDER_STATUS.DONE }
-        }
-
-        return order
-      }),
-    )
+        }),
+      )
+    }
   }
+
+  const stockByMenuId = useMemo(
+    () =>
+      menus.reduce(
+        (acc, menu) => ({ ...acc, [menu.id]: menu.stockQuantity ?? 0 }),
+        {},
+      ),
+    [menus],
+  )
 
   const dashboard = useMemo(() => {
     const receivedCount = orders.filter(
@@ -221,7 +388,7 @@ function App() {
   const renderOrderPage = () => (
     <>
       <section className="menu-grid">
-        {MENU_ITEMS.map((menuItem) => {
+        {menus.map((menuItem) => {
           const selectedOptionIds = selectedOptionsByMenuId[menuItem.id] ?? []
 
           return (
@@ -236,7 +403,7 @@ function App() {
               <p className="menu-description">{menuItem.description}</p>
 
               <div className="option-list">
-                {OPTIONS.map((option) => (
+                {menuItem.options.map((option) => (
                   <label className="option-item" key={option.id}>
                     <input
                       checked={selectedOptionIds.includes(option.id)}
@@ -350,7 +517,7 @@ function App() {
       <section className="admin-section">
         <h3>재고 현황</h3>
         <div className="stock-grid">
-          {MENU_ITEMS.map((menuItem) => {
+          {menus.map((menuItem) => {
             const quantity = stockByMenuId[menuItem.id] ?? 0
             const label = getStockLabel(quantity)
             const tone = getStockTone(quantity)
@@ -442,6 +609,11 @@ function App() {
           </button>
         </div>
       </header>
+      {errorMessage && (
+        <p className="empty-cart-text" style={{ marginTop: '12px' }}>
+          {errorMessage}
+        </p>
+      )}
       {activeTab === 'order' ? renderOrderPage() : renderAdminPage()}
     </main>
   )
