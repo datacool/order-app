@@ -1,6 +1,36 @@
 const { Client } = require('pg')
 const { pool } = require('./db')
 
+const parseBoolean = (value) => {
+  if (typeof value !== 'string') {
+    return null
+  }
+
+  const normalized = value.toLowerCase()
+  if (normalized === 'true') {
+    return true
+  }
+  if (normalized === 'false') {
+    return false
+  }
+
+  return null
+}
+
+const shouldUseSsl = () => {
+  const explicit = parseBoolean(process.env.DB_SSL)
+
+  if (explicit !== null) {
+    return explicit
+  }
+
+  if (process.env.NODE_ENV === 'production') {
+    return true
+  }
+
+  return (process.env.DB_HOST ?? '').includes('render.com')
+}
+
 const DEFAULT_MENUS = [
   {
     name: '아메리카노(ICE)',
@@ -28,17 +58,24 @@ const DEFAULT_MENUS = [
 
 const ensureDatabaseExists = async () => {
   const targetDbName = process.env.DB_NAME
+  const hasConnectionString = typeof process.env.DATABASE_URL === 'string'
+
+  if (!targetDbName || hasConnectionString) {
+    return
+  }
+
   const adminClient = new Client({
     host: process.env.DB_HOST,
     port: Number(process.env.DB_PORT ?? 5432),
     database: 'postgres',
     user: process.env.DB_USER,
     password: process.env.DB_PASSWORD,
+    ssl: shouldUseSsl() ? { rejectUnauthorized: false } : false,
   })
 
-  await adminClient.connect()
-
   try {
+    await adminClient.connect()
+
     const existsResult = await adminClient.query(
       'SELECT 1 FROM pg_database WHERE datname = $1',
       [targetDbName],
@@ -47,8 +84,19 @@ const ensureDatabaseExists = async () => {
     if (existsResult.rows.length === 0) {
       await adminClient.query(`CREATE DATABASE "${targetDbName}"`)
     }
+  } catch (error) {
+    // Managed DB environments (e.g., Render) may not allow connecting to
+    // the postgres database or creating databases. In that case, continue
+    // and create schema on the target DB connection only.
+    if (
+      error.code !== '3D000' &&
+      error.code !== '42501' &&
+      error.code !== '28000'
+    ) {
+      throw error
+    }
   } finally {
-    await adminClient.end()
+    await adminClient.end().catch(() => {})
   }
 }
 
