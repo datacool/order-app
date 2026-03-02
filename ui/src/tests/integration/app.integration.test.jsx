@@ -26,8 +26,11 @@ describe('App 통합 흐름', () => {
 
     const addButtons = screen.getAllByRole('button', { name: '담기' })
     await user.click(addButtons[0])
-    const orderButtons = screen.getAllByRole('button', { name: '주문하기' })
-    await user.click(orderButtons[1])
+    const cartPanel = screen.getByRole('heading', { name: '장바구니' })
+      .closest('.cart-panel')
+    expect(cartPanel).not.toBeNull()
+    const orderButton = within(cartPanel).getByRole('button', { name: '주문하기' })
+    await user.click(orderButton)
     await user.click(screen.getByRole('button', { name: '관리자' }))
 
     const startButtons = screen.getAllByRole('button', { name: '제조 시작' })
