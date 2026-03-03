@@ -59,7 +59,23 @@ const FALLBACK_ORDERS = [
   },
 ]
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:4000'
+const normalizeBaseUrl = (url) => url.replace(/\/+$/, '')
+const API_BASE_URL = normalizeBaseUrl(
+  import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:4000',
+)
+
+const parseApiResponse = async (response) => {
+  const text = await response.text()
+  let data = {}
+
+  try {
+    data = text ? JSON.parse(text) : {}
+  } catch {
+    throw new Error(`API 응답 파싱 실패 (${response.status})`)
+  }
+
+  return data
+}
 
 const ORDER_STATUS = {
   RECEIVED: '주문 접수',
@@ -82,8 +98,8 @@ function App() {
           fetch(`${API_BASE_URL}/api/menus`),
           fetch(`${API_BASE_URL}/api/orders`),
         ])
-        const menusData = await menusResponse.json()
-        const ordersData = await ordersResponse.json()
+        const menusData = await parseApiResponse(menusResponse)
+        const ordersData = await parseApiResponse(ordersResponse)
 
         if (!menusResponse.ok) {
           throw new Error(menusData.message ?? '메뉴 조회에 실패했습니다.')
@@ -234,7 +250,7 @@ function App() {
           })),
         }),
       })
-      const data = await response.json()
+      const data = await parseApiResponse(response)
 
       if (!response.ok) {
         throw new Error(data.message ?? '주문 생성에 실패했습니다.')
@@ -279,7 +295,7 @@ function App() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ delta }),
       })
-      const data = await response.json()
+      const data = await parseApiResponse(response)
 
       if (!response.ok) {
         throw new Error(data.message ?? '재고 변경에 실패했습니다.')
@@ -323,7 +339,7 @@ function App() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status: nextStatus }),
       })
-      const data = await response.json()
+      const data = await parseApiResponse(response)
 
       if (!response.ok) {
         throw new Error(data.message ?? '주문 상태 변경에 실패했습니다.')

@@ -3,6 +3,14 @@ import userEvent from '@testing-library/user-event'
 import App from '../../App'
 
 describe('App 통합 흐름', () => {
+  beforeEach(() => {
+    vi.spyOn(globalThis, 'fetch').mockRejectedValue(new Error('network error'))
+  })
+
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
   it('같은 메뉴를 여러 번 담으면 수량과 금액이 누적된다', async () => {
     const user = userEvent.setup()
     render(<App />)

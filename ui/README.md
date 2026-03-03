@@ -1,16 +1,27 @@
-# React + Vite
+# COZY UI (React + Vite)
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+## 로컬 실행
 
-Currently, two official plugins are available:
+1. 환경변수 파일 준비
+   - `ui/.env.example`를 참고해 `ui/.env` 생성
+2. 의존성 설치
+   - `npm install`
+3. 개발 서버 실행
+   - `npm run dev`
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+기본 API 주소는 `http://localhost:4000`입니다.
 
-## React Compiler
+## Render 배포 (Static Site)
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+- Service Type: `Static Site`
+- Root Directory: `ui`
+- Build Command: `npm install && npm run build`
+- Publish Directory: `dist`
 
-## Expanding the ESLint configuration
+필수 환경변수:
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+- `VITE_API_BASE_URL=https://<your-backend-service>.onrender.com`
+
+## 테스트
+
+- 단위 + 통합 테스트: `npm run test`
