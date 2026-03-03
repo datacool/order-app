@@ -12,6 +12,12 @@ const NEXT_STATUS = {
   완료: null,
 }
 
+const createHttpError = (status, message) => {
+  const error = new Error(message)
+  error.status = status
+  return error
+}
+
 app.use(cors())
 app.use(express.json())
 
@@ -239,7 +245,7 @@ app.post('/api/orders', async (req, res) => {
     const menuMap = new Map(menuResult.rows.map((menu) => [menu.id, menu]))
 
     if (menuMap.size !== menuIds.length) {
-      throw new Error('존재하지 않는 메뉴가 포함되어 있습니다.')
+      throw createHttpError(400, '존재하지 않는 메뉴가 포함되어 있습니다.')
     }
 
     const requestedByMenu = normalizedItems.reduce((acc, item) => ({
@@ -272,7 +278,7 @@ app.post('/api/orders', async (req, res) => {
       optionMap = new Map(optionsResult.rows.map((option) => [option.id, option]))
 
       if (optionMap.size !== allOptionIds.length) {
-        throw new Error('존재하지 않는 옵션이 포함되어 있습니다.')
+        throw createHttpError(400, '존재하지 않는 옵션이 포함되어 있습니다.')
       }
     }
 
@@ -292,7 +298,7 @@ app.post('/api/orders', async (req, res) => {
         const option = optionMap.get(optionId)
 
         if (option.menu_id !== item.menuId) {
-          throw new Error('메뉴와 옵션의 연결이 올바르지 않습니다.')
+          throw createHttpError(400, '메뉴와 옵션의 연결이 올바르지 않습니다.')
         }
 
         return {
@@ -361,8 +367,8 @@ app.post('/api/orders', async (req, res) => {
   } catch (error) {
     await client.query('ROLLBACK')
 
-    return res.status(500).json({
-      message: '주문 생성에 실패했습니다.',
+    return res.status(error.status ?? 500).json({
+      message: error.status ? error.message : '주문 생성에 실패했습니다.',
       error: error.message,
     })
   } finally {

@@ -93,32 +93,49 @@ function App() {
 
   useEffect(() => {
     const fetchInitialData = async () => {
-      try {
-        const [menusResponse, ordersResponse] = await Promise.all([
-          fetch(`${API_BASE_URL}/api/menus`),
-          fetch(`${API_BASE_URL}/api/orders`),
-        ])
-        const menusData = await parseApiResponse(menusResponse)
-        const ordersData = await parseApiResponse(ordersResponse)
+      const [menusResult, ordersResult] = await Promise.allSettled([
+        fetch(`${API_BASE_URL}/api/menus`),
+        fetch(`${API_BASE_URL}/api/orders`),
+      ])
+      const errors = []
 
-        if (!menusResponse.ok) {
-          throw new Error(menusData.message ?? '메뉴 조회에 실패했습니다.')
-        }
+      if (menusResult.status === 'fulfilled') {
+        try {
+          const menusData = await parseApiResponse(menusResult.value)
 
-        if (!ordersResponse.ok) {
-          throw new Error(ordersData.message ?? '주문 조회에 실패했습니다.')
-        }
+          if (!menusResult.value.ok) {
+            throw new Error(menusData.message ?? '메뉴 조회에 실패했습니다.')
+          }
 
-        if (Array.isArray(menusData.menus)) {
-          setMenus(menusData.menus)
+          if (Array.isArray(menusData.menus)) {
+            setMenus(menusData.menus)
+          }
+        } catch (error) {
+          errors.push(`메뉴 조회 실패: ${error.message}`)
         }
-
-        if (Array.isArray(ordersData.orders)) {
-          setOrders(ordersData.orders)
-        }
-      } catch (error) {
-        setErrorMessage(`API 연결 실패: ${error.message}`)
+      } else {
+        errors.push(`메뉴 조회 실패: ${menusResult.reason?.message ?? 'network error'}`)
       }
+
+      if (ordersResult.status === 'fulfilled') {
+        try {
+          const ordersData = await parseApiResponse(ordersResult.value)
+
+          if (!ordersResult.value.ok) {
+            throw new Error(ordersData.message ?? '주문 조회에 실패했습니다.')
+          }
+
+          if (Array.isArray(ordersData.orders)) {
+            setOrders(ordersData.orders)
+          }
+        } catch (error) {
+          errors.push(`주문 조회 실패: ${error.message}`)
+        }
+      } else {
+        errors.push(`주문 조회 실패: ${ordersResult.reason?.message ?? 'network error'}`)
+      }
+
+      setErrorMessage(errors.length > 0 ? `API 연결 실패: ${errors.join(' / ')}` : '')
     }
 
     fetchInitialData()
